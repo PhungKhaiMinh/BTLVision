@@ -664,7 +664,7 @@ class ObjectTracker:
 
 class InputSource:
     """Lớp đại diện cho nguồn đầu vào."""
-    def __init__(self, source_type, source_path=None, droidcam_ip='10.229.161.17', droidcam_port='4747'):
+    def __init__(self, source_type, source_path=None, droidcam_ip='192.168.1.8', droidcam_port='4747'):
         self.source_type = source_type  # 'droidcam', 'video', 'image', 'webcam'
         self.source_path = source_path
         self.droidcam_ip = droidcam_ip
@@ -828,7 +828,7 @@ def get_user_input_source():
                 
             if choice == 1:
                 # DroidCam
-                droidcam_ip = input("Nhập địa chỉ IP DroidCam (mặc định 10.229.161.17): ") or "10.229.161.17"
+                droidcam_ip = input("Nhập địa chỉ IP DroidCam (mặc định 192.168.1.8): ") or "192.168.1.8"
                 droidcam_port = input("Nhập cổng DroidCam (mặc định 4747): ") or "4747"
                 return InputSource('droidcam', droidcam_ip=droidcam_ip, droidcam_port=droidcam_port)
                 
@@ -1682,7 +1682,7 @@ def main():
     parser.add_argument('--resolution', type=str, default='', help='Độ phân giải đầu ra (WxH)')
     parser.add_argument('--no-nms', action='store_true', help='Không áp dụng NMS')
     parser.add_argument('--droidcam', action='store_true', help='Sử dụng DroidCam làm nguồn đầu vào')
-    parser.add_argument('--droidcam-ip', type=str, default='10.229.161.17', help='IP của DroidCam')
+    parser.add_argument('--droidcam-ip', type=str, default='192.168.1.8', help='IP của DroidCam')
     parser.add_argument('--droidcam-port', type=str, default='4747', help='Port của DroidCam')
     
     args = parser.parse_args()

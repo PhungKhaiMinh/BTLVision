@@ -364,9 +364,9 @@ def get_video_frame(video_path, frame_number):
     return frame
 
 def process_video(video_path, model_data, conf_threshold=0.25, input_size=640, apply_nms=True, nms_threshold=0.5, center_distance_threshold=0.2, 
-                  buffer_size=10, iou_threshold=0.5, stability_threshold=0.6):
-    """Xử lý video và tạo phiên bản mới với detections"""
-    # Khởi tạo object tracker cho video
+                  buffer_size=10, iou_threshold=0.5, stability_threshold=0.6, debug_mode=False):
+    """Xử lý video và tạo phiên bản mới với detections, áp dụng các tính năng tracking tốt hơn"""
+    # Khởi tạo object tracker cho video với cấu hình tương tự như phần camera
     tracker = create_object_tracker(
         buffer_size=buffer_size,
         iou_threshold=iou_threshold,
@@ -406,6 +406,10 @@ def process_video(video_path, model_data, conf_threshold=0.25, input_size=640, a
     # Thông báo thông số
     st.info(f"Xử lý video với: Buffer={buffer_size}, IoU={iou_threshold}, Stability={stability_threshold}, NMS IoU={nms_threshold}")
     
+    # Theo dõi FPS
+    last_time = time.time()
+    fps_display = 0
+    
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -413,145 +417,38 @@ def process_video(video_path, model_data, conf_threshold=0.25, input_size=640, a
         
         # Chỉ xử lý mỗi 2-3 frame để tăng tốc độ (có thể điều chỉnh)
         if frame_idx % 2 == 0:
-            # Sao chép frame gốc để hiển thị
-            original_frame = frame.copy()
-            
-            # Thay đổi kích thước frame
-            resized_frame = cv2.resize(frame, (input_size, input_size))
-            
-            # Lấy kết quả detections từ model
-            _, detections = process_image_wrapper(
-                resized_frame, 
+            current_time = time.time()
+            fps_display = 1.0 / (current_time - last_time) if current_time != last_time else 0
+            last_time = current_time
+                
+            # Xử lý frame với wrapper
+            result_img, detections = process_camera_frame_wrapper(
+                frame, 
                 model_data, 
                 conf_threshold, 
                 input_size, 
                 apply_nms, 
-                nms_threshold, 
+                nms_threshold,
                 center_distance_threshold,
-                return_image_with_boxes=False
+                tracker
             )
             
-            # Đảm bảo detections không phải None
-            if detections is None:
-                detections = []
+            # Thêm hiển thị FPS
+            if result_img is not None:
+                cv2.putText(result_img, f"FPS: {fps_display:.1f}", (10, 70), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
-            # Cập nhật tracker
-            tracker.update(detections)
-            stable_objects = tracker.get_stable_objects()
-            
-            # Chọn đối tượng để hiển thị (đối tượng ổn định)
-            objects_to_display = stable_objects
-            
-            # Đảm bảo objects_to_display không phải None
-            if objects_to_display is None:
-                objects_to_display = []
-            
-            # Tỷ lệ để scale bounding box từ kích thước resize về kích thước gốc
-            scale_x = width / input_size
-            scale_y = height / input_size
-            
-            # Vẽ các đối tượng
-            class_names = model_data.get("classes", {})
-            
-            # Vẽ kết quả
-            result_img = original_frame.copy()
-            
-            for det in objects_to_display:
-                # Kiểm tra det không phải None
-                if det is None:
-                    continue
-                    
-                # Unpack tuple một cách an toàn
-                try:
-                    if len(det) == 4:
-                        cls_id, obj_id, conf, box = det
-                    else:
-                        cls_id, conf, box = det
-                        obj_id = "-"
-                        
-                    # Đảm bảo box là iterable
-                    if box is None:
-                        continue
-                    
-                    # Scale bounding box về kích thước gốc
-                    x, y, w, h = box
-                    x = int(x * scale_x)
-                    y = int(y * scale_y)
-                    w = int(w * scale_x)
-                    h = int(h * scale_y)
-                
-                    # Kiểm tra và đảm bảo tọa độ nằm trong frame
-                    x = max(0, min(x, width-1))
-                    y = max(0, min(y, height-1))
-                    w = min(w, width-x)
-                    h = min(h, height-y)
-                
-                    # Lấy tên lớp
-                    if isinstance(class_names, dict):
-                        class_name = class_names.get(cls_id, f"Class {cls_id}")
-                    elif isinstance(class_names, list) and 0 <= cls_id < len(class_names):
-                        class_name = class_names[cls_id]
-                    else:
-                        class_name = f"Class {cls_id}"
-                
-                    # Sử dụng màu đỏ như trong run_yolo.py
-                    color = (0, 0, 255)  # BGR - màu đỏ
-                    
-                    # Vẽ bounding box với độ dày 3 như trong run_yolo.py
-                    cv2.rectangle(result_img, (x, y), (x + w, y + h), color, 3)
-                
-                    # Hiển thị label và độ tin cậy - đúng định dạng như run_yolo.py
-                    label = f"{class_name} | ID:{obj_id} | {conf:.2f}"
-                
-                    # Sử dụng font và kích thước giống với run_yolo.py
-                    (label_width, label_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
-                    cv2.rectangle(result_img, (x, y - label_height - baseline - 5), (x + label_width, y), color, -1)
-                    cv2.putText(result_img, label, (x, y - baseline - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                except Exception as e:
-                    # Log lỗi nếu cần nhưng không gây crash
-                    print(f"Lỗi khi xử lý detection: {e}")
-                    continue
-            
-            # Hiển thị FPS và thông tin lọc theo style của run_yolo.py
-            cv2.putText(result_img, f"Objects: {len(objects_to_display)}/{len(detections)}", (10, 30), 
-                      cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            # Hiển thị thông tin các đối tượng phát hiện được
-            if detections:
-                with st.expander("Chi tiết các đối tượng phát hiện", expanded=debug_mode):
-                    for i, det in enumerate(detections):
-                        try:
-                            if det is None:
-                                continue
-                            
-                            if len(det) == 4:
-                                cls_id, obj_id, conf, _ = det
-                            else:
-                                cls_id, conf, _ = det
-                                obj_id = "-"
-                                
-                            class_names = model_data.get("classes", {})
-                            if isinstance(class_names, dict):
-                                class_name = class_names.get(cls_id, f"Class {cls_id}")
-                            elif isinstance(class_names, list) and 0 <= cls_id < len(class_names):
-                                class_name = class_names[cls_id]
-                            else:
-                                class_name = f"Class {cls_id}"
-                                
-                            st.write(f"{i+1}. {class_name} | ID:{obj_id} | {conf:.2f}")
-                        except Exception as e:
-                            st.write(f"Lỗi khi hiển thị chi tiết detection: {str(e)}")
-                            continue
-            
+            # Ghi frame vào video đầu ra
             writer.write(result_img)
             
             # Cập nhật tiến trình
             progress = (frame_idx + 1) / total_frames
             progress_bar.progress(progress)
-            frame_text.text(f"Xử lý frame: {frame_idx+1}/{total_frames}")
+            frame_text.text(f"Xử lý frame: {frame_idx+1}/{total_frames} | FPS: {fps_display:.1f}")
             
             processed_frames += 1
         else:
+            # Ghi frame gốc với các frame bỏ qua
             writer.write(frame)
             
         frame_idx += 1
@@ -846,7 +743,7 @@ def main():
         st.sidebar.header("Cấu hình")
         
         # Chọn model
-        model_path = st.sidebar.text_input("Đường dẫn đến model YOLOv8", "last(1)-can-n.pt")
+        model_path = st.sidebar.text_input("Đường dẫn đến model YOLOv8", "best(3)-can-n.pt")
         
         # Thêm chế độ debug
         debug_mode = st.sidebar.checkbox("Chế độ debug", False)
@@ -1104,7 +1001,8 @@ def main():
                                 center_distance_threshold,
                                 buffer_size,
                                 iou_threshold,
-                                stability_threshold
+                                stability_threshold,
+                                debug_mode
                             )
                         
                         if output_video:
@@ -1136,7 +1034,7 @@ def main():
             )
             
             if camera_option == "DroidCam":
-                droidcam_ip = st.text_input("Địa chỉ IP DroidCam", "10.229.161.17", key="droidcam_ip_input")
+                droidcam_ip = st.text_input("Địa chỉ IP DroidCam", "192.168.1.8", key="droidcam_ip_input")
                 droidcam_port = st.text_input("Cổng DroidCam", "4747", key="droidcam_port_input")
                 camera_url = f"http://{droidcam_ip}:{droidcam_port}/video"
             else:
@@ -1281,8 +1179,6 @@ def main():
                         if debug_mode:
                             import traceback
                             st.code(traceback.format_exc())
-                else:
-                    st.error("Vui lòng kiểm tra lại đường dẫn model.")
 
         # Tab 4: Theo dõi tồn kho
         with tab4:
@@ -1298,7 +1194,7 @@ def main():
             
             # Cấu hình nguồn
             if inventory_input == "DroidCam":
-                droidcam_ip = st.text_input("Địa chỉ IP DroidCam", "10.229.161.17", key="inventory_droidcam_ip")
+                droidcam_ip = st.text_input("Địa chỉ IP DroidCam", "192.168.1.8", key="inventory_droidcam_ip")
                 droidcam_port = st.text_input("Cổng DroidCam", "4747", key="inventory_droidcam_port")
                 camera_url = f"http://{droidcam_ip}:{droidcam_port}/video"
             else:
@@ -1478,18 +1374,24 @@ def main():
                                             # Hiển thị tóm tắt
                                             summary_md = f"""
                                             ### Tóm tắt tồn kho
-                                            - **Tổng sản phẩm dự kiến:** {total_expected}
                                             - **Tổng sản phẩm thực tế:** {total_actual}
                                             - **Chênh lệch:** {total_difference}
+
+"""
                                             
-                                            ### Cảnh báo
-                                            """
+                                            # Tạo danh sách tất cả sản phẩm
+                                            all_products = []
+                                            for product_class, status in inventory_status.items():
+                                                status_icon = "🔴" if status["alert"] else "🟢"
+                                                product_info = f"{status_icon} **{product_class}:** {status['status']} (còn {status['actual']}/{status['expected']})"
+                                                all_products.append((product_class, status["alert"], product_info))
                                             
-                                            if alerts:
-                                                for alert in alerts:
-                                                    summary_md += f"- 🔴 **{alert}**\n"
-                                            else:
-                                                summary_md += "- ✅ Không có cảnh báo.\n"
+                                            # Sắp xếp danh sách, đưa các sản phẩm cảnh báo lên đầu
+                                            all_products.sort(key=lambda x: (not x[1], x[0]))
+                                            
+                                            # Thêm danh sách sản phẩm vào tóm tắt
+                                            for _, _, product_info in all_products:
+                                                summary_md += f"- {product_info}\n"
                                             
                                             inventory_summary.markdown(summary_md)
                                             
