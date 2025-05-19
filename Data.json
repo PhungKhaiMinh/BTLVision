@@ -1,0 +1,34 @@
+{
+  "products": [
+    {
+      "class": "333 Beer",
+      "price": 20000,
+      "on_shelf": 3
+    },
+    {
+      "class": "Mirinda cans",
+      "price": 10000,
+      "on_shelf": 5
+    },
+    {
+      "class": "Pepsi cans",
+      "price": 12000,
+      "on_shelf": 4
+    },
+    {
+      "class": "Redbull cans",
+      "price": 15000,
+      "on_shelf": 2
+    },
+    {
+      "class": "Saigon Beer",
+      "price": 21000,
+      "on_shelf": 4
+    },
+    {
+      "class": "Sting cans",
+      "price": 11000,
+      "on_shelf": 6
+    }
+  ]
+} 
