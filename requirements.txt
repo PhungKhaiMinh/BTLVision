@@ -1,0 +1,28 @@
+# Core dependencies
+numpy==2.1.1
+opencv-python==4.11.0.86
+torch>=2.0.0
+torchvision>=0.15.0
+streamlit==1.45.1
+pillow==11.1.0
+
+# YOLO and model optimization
+ultralytics>=8.0.0
+onnx==1.18.0
+onnxruntime-gpu==1.22.0
+tensorrt==10.11.0.33
+
+# Image processing
+scikit-image==0.25.1
+scipy==1.15.1
+matplotlib==3.10.0
+
+# Utilities
+pyyaml==6.0.2
+tqdm>=4.65.0
+psutil==7.0.0
+requests==2.32.3
+
+# Optional but recommended
+pandas==2.2.3
+seaborn==0.13.2 
